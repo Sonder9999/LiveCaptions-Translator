@@ -1,7 +1,9 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 
+using LiveCaptionsTranslator.models;
+using LiveCaptionsTranslator.utils;
 using LiveCaptionsTranslator.Utils;
 
 namespace LiveCaptionsTranslator
@@ -9,6 +11,18 @@ namespace LiveCaptionsTranslator
     public partial class CaptionPage : Page
     {
         public const int CARD_HEIGHT = 110;
+
+        public static readonly DependencyProperty TranslatedFontSizeProperty = DependencyProperty.Register(
+            nameof(TranslatedFontSize),
+            typeof(double),
+            typeof(CaptionPage),
+            new PropertyMetadata(18.0));
+
+        public double TranslatedFontSize
+        {
+            get => (double)GetValue(TranslatedFontSizeProperty);
+            set => SetValue(TranslatedFontSizeProperty, value);
+        }
 
         private static CaptionPage instance;
         public static CaptionPage Instance => instance;
@@ -22,11 +36,13 @@ namespace LiveCaptionsTranslator
             Loaded += (s, e) =>
             {
                 AutoHeight();
-                (App.Current.MainWindow as MainWindow).CaptionLogButton.Visibility = Visibility.Visible;
+                if (App.Current.MainWindow is MainWindow mainWindow)
+                    mainWindow.CaptionLogButton.Visibility = Visibility.Visible;
             };
             Unloaded += (s, e) =>
             {
-                (App.Current.MainWindow as MainWindow).CaptionLogButton.Visibility = Visibility.Collapsed;
+                if (App.Current.MainWindow is MainWindow mainWindow)
+                    mainWindow.CaptionLogButton.Visibility = Visibility.Collapsed;
             };
 
             CollapseTranslatedCaption(Translator.Setting.MainWindow.CaptionLogEnabled);
@@ -37,23 +53,61 @@ namespace LiveCaptionsTranslator
         {
             if (sender is TextBlock textBlock)
             {
-                try
-                {
-                    Clipboard.SetText(textBlock.Text);
-                    SnackbarHost.Show("Copied.", textBlock.Text, SnackbarType.Info, 100);
-                }
-                catch
-                {
-                    SnackbarHost.Show("Copy Failed.", string.Empty, SnackbarType.Error, 100);
-                }
-                await Task.Delay(500);
+                await CopyTextAsync(textBlock.Text);
             }
+        }
+
+        private async void LogTranslation_MouseLeftButtonDown(object sender, RoutedEventArgs e)
+        {
+            if (sender is TextBlock textBlock)
+            {
+                string cleanText = RegexPatterns.NoticePrefix().Replace(textBlock.Text ?? string.Empty, string.Empty).Trim();
+                await CopyTextAsync(cleanText);
+            }
+        }
+
+        private async void EngineTranslationRow_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is not FrameworkElement element)
+                return;
+
+            string textToCopy = string.Empty;
+            if (element.DataContext is EngineTranslationItem item && !string.IsNullOrWhiteSpace(item.PureTranslation))
+            {
+                textToCopy = item.PureTranslation;
+            }
+            else if (element.Tag is string tagText && !string.IsNullOrWhiteSpace(tagText))
+            {
+                textToCopy = tagText;
+            }
+
+            if (!string.IsNullOrWhiteSpace(textToCopy))
+            {
+                await CopyTextAsync(textToCopy);
+            }
+        }
+
+        private static async Task CopyTextAsync(string? text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                return;
+
+            try
+            {
+                Clipboard.SetText(text);
+                SnackbarHost.Show("Copied.", text, SnackbarType.Info, 100);
+            }
+            catch
+            {
+                SnackbarHost.Show("Copy Failed.", string.Empty, SnackbarType.Error, 100);
+            }
+            await Task.Delay(500);
         }
 
         private void ApplyFontSizes()
         {
             OriginalCaption.FontSize = Translator.Setting.MainWindow.OriginalFontSize;
-            TranslatedCaption.FontSize = Translator.Setting.MainWindow.TranslatedFontSize;
+            TranslatedFontSize = Translator.Setting.MainWindow.TranslatedFontSize;
         }
 
         private void OriginalCard_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
@@ -100,17 +154,17 @@ namespace LiveCaptionsTranslator
 
         public void AutoHeight()
         {
-            int extraParallel = Math.Max(0, Translator.GetActiveApis().Count - 1) * 28;
-            if (Translator.Setting.MainWindow.CaptionLogEnabled)
-            {
-                int height = CARD_HEIGHT * (Translator.Setting.DisplaySentences + 1) + extraParallel;
-                (App.Current.MainWindow as MainWindow).AutoHeightAdjust(minHeight: height, maxHeight: height);
-            }
-            else
-            {
-                int height = (int)App.Current.MainWindow.MinHeight + extraParallel;
-                (App.Current.MainWindow as MainWindow).AutoHeightAdjust(minHeight: height, maxHeight: height);
-            }
+            int activeCount = Math.Max(1, Translator.GetActiveApis().Count);
+            int extraParallel = (activeCount - 1) * 34;
+            if (App.Current.MainWindow is not MainWindow mainWindow)
+                return;
+
+            int height = Translator.Setting.MainWindow.CaptionLogEnabled
+                ? CARD_HEIGHT * (Translator.Setting.DisplaySentences + 1) + extraParallel
+                : (int)mainWindow.MinHeight + extraParallel;
+
+            mainWindow.IsAutoHeight = true;
+            mainWindow.AutoHeightAdjust(minHeight: height, maxHeight: height);
         }
     }
 }
