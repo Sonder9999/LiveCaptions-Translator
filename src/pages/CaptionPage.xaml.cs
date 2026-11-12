@@ -154,16 +154,16 @@ namespace LiveCaptionsTranslator
 
         public void AutoHeight()
         {
+            if (!IsLoaded || App.Current.MainWindow is not MainWindow mainWindow)
+                return;
+
             int activeCount = Math.Max(1, Translator.GetActiveApis().Count);
             int extraParallel = (activeCount - 1) * 34;
-            if (App.Current.MainWindow is not MainWindow mainWindow)
-                return;
 
             int height = Translator.Setting.MainWindow.CaptionLogEnabled
                 ? CARD_HEIGHT * (Translator.Setting.DisplaySentences + 1) + extraParallel
                 : (int)mainWindow.MinHeight + extraParallel;
 
-            mainWindow.IsAutoHeight = true;
             mainWindow.AutoHeightAdjust(minHeight: height, maxHeight: height);
         }
     }

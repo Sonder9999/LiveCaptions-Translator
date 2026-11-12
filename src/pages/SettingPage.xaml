@@ -318,7 +318,6 @@
 
                 <ScrollViewer
                     Grid.Row="1"
-                    MaxHeight="155"
                     VerticalScrollBarVisibility="Auto">
                     <ItemsControl x:Name="EngineItemsControl">
                         <ItemsControl.ItemTemplate>

@@ -14,6 +14,7 @@ namespace LiveCaptionsTranslator
     {
         public OverlayWindow? OverlayWindow { get; set; } = null;
         public bool IsAutoHeight { get; set; } = true;
+        private bool isProgrammaticResize = false;
 
         public MainWindow()
         {
@@ -138,7 +139,13 @@ namespace LiveCaptionsTranslator
         private void MainWindow_SizeChanged(object sender, SizeChangedEventArgs e)
         {
             MainWindow_LocationChanged(sender, e);
-            IsAutoHeight = false;
+            if (e.HeightChanged)
+            {
+                if (isProgrammaticResize)
+                    isProgrammaticResize = false;
+                else
+                    IsAutoHeight = false;
+            }
         }
 
         public void ToggleTopmost(bool enabled)
@@ -241,12 +248,16 @@ namespace LiveCaptionsTranslator
         {
             if (minHeight > 0 && Height < minHeight)
             {
+                isProgrammaticResize = true;
                 Height = minHeight;
                 IsAutoHeight = true;
             }
 
             if (IsAutoHeight && maxHeight > 0 && Height > maxHeight)
+            {
+                isProgrammaticResize = true;
                 Height = maxHeight;
+            }
         }
     }
 }

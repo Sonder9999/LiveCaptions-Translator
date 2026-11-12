@@ -50,12 +50,7 @@ namespace LiveCaptionsTranslator
 
             Loaded += (s, e) =>
             {
-                if (App.Current.MainWindow is MainWindow mainWindow)
-                {
-                    mainWindow.IsAutoHeight = true;
-                    mainWindow.AutoHeightAdjust(minHeight: MIN_HEIGHT, maxHeight: MIN_HEIGHT);
-                    Dispatcher.BeginInvoke(() => mainWindow.IsAutoHeight = true, DispatcherPriority.Render);
-                }
+                (App.Current.MainWindow as MainWindow)?.AutoHeightAdjust(minHeight: MIN_HEIGHT, maxHeight: MIN_HEIGHT);
                 RefreshEngineItems();
                 CheckForFirstUse();
             };
@@ -174,7 +169,6 @@ namespace LiveCaptionsTranslator
             RefreshEngineItems();
             LoadAPISetting();
             Translator.EnqueueActiveApisForCurrentCaption();
-            CaptionPage.Instance?.AutoHeight();
         }
 
         private void RefreshEngineItems()
