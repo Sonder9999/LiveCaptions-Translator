@@ -12,6 +12,21 @@ namespace LiveCaptionsTranslator.models
     public class Setting : INotifyPropertyChanged
     {
         public static readonly string FILENAME = "setting.json";
+        public static readonly IReadOnlyList<string> DEFAULT_API_ORDER =
+        [
+            "Google",
+            "IndexTranslate",
+            "OpenAI",
+            "DeepL",
+            "Ollama",
+            "Google2",
+            "LMStudio",
+            "OpenRouter",
+            "Youdao",
+            "MTranServer",
+            "Baidu",
+            "LibreTranslate"
+        ];
 
         public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -23,6 +38,7 @@ namespace LiveCaptionsTranslator.models
 
         private string apiName;
         private List<string> parallelApiNames = [];
+        private List<string> apiOrder = [];
         private string targetLanguage;
         private string prompt;
         private string? ignoredUpdateVersion;
@@ -88,6 +104,15 @@ namespace LiveCaptionsTranslator.models
             {
                 parallelApiNames = value ?? [];
                 OnPropertyChanged("ParallelApiNames");
+            }
+        }
+        public List<string> ApiOrder
+        {
+            get => apiOrder;
+            set
+            {
+                apiOrder = value ?? [];
+                OnPropertyChanged("ApiOrder");
             }
         }
         public string TargetLanguage
@@ -174,6 +199,7 @@ namespace LiveCaptionsTranslator.models
         public Setting()
         {
             apiName = "Google";
+            apiOrder = [.. DEFAULT_API_ORDER];
             targetLanguage = "zh-CN";
             prompt = "As an professional simultaneous interpreter with specialized knowledge in the all fields, " +
                      "you can provide a fluent and precise oral translation for any sentence, even if the sentence is incomplete. " +
@@ -294,11 +320,105 @@ namespace LiveCaptionsTranslator.models
                 setting.ApiName = "Google";
 
             setting.ParallelApiNames = (setting.ParallelApiNames ?? [])
-                .Where(key => TranslateAPI.TRANSLATE_FUNCTIONS.ContainsKey(key))
+                .Where(key => TranslateAPI.TRANSLATE_FUNCTIONS.ContainsKey(key) && key != setting.ApiName)
                 .Distinct()
                 .ToList();
 
+            setting.NormalizeApiOrder();
+
             return setting;
+        }
+
+        public void NormalizeApiOrder()
+        {
+            var activeApis = new List<string>();
+            if (!string.IsNullOrEmpty(apiName) && TranslateAPI.TRANSLATE_FUNCTIONS.ContainsKey(apiName))
+                activeApis.Add(apiName);
+
+            if (parallelApiNames != null)
+            {
+                foreach (string api in parallelApiNames)
+                {
+                    if (TranslateAPI.TRANSLATE_FUNCTIONS.ContainsKey(api) && !activeApis.Contains(api))
+                        activeApis.Add(api);
+                }
+            }
+
+            if (activeApis.Count == 0)
+                activeApis.Add("Google");
+
+            var ordered = new List<string>(activeApis);
+            if (apiOrder != null)
+            {
+                foreach (string api in apiOrder)
+                {
+                    if (TranslateAPI.TRANSLATE_FUNCTIONS.ContainsKey(api) && !ordered.Contains(api))
+                        ordered.Add(api);
+                }
+            }
+            foreach (string api in DEFAULT_API_ORDER)
+            {
+                if (TranslateAPI.TRANSLATE_FUNCTIONS.ContainsKey(api) && !ordered.Contains(api))
+                    ordered.Add(api);
+            }
+            foreach (string api in TranslateAPI.TRANSLATE_FUNCTIONS.Keys)
+            {
+                if (!ordered.Contains(api))
+                    ordered.Add(api);
+            }
+
+            apiName = activeApis[0];
+            parallelApiNames = activeApis.Skip(1).ToList();
+            apiOrder = ordered;
+        }
+
+        public void UpdateEngineSelection(IReadOnlyList<string> orderedAllApis, IReadOnlyList<string> enabledApis)
+        {
+            var ordered = new List<string>();
+            foreach (string api in orderedAllApis)
+            {
+                if (TranslateAPI.TRANSLATE_FUNCTIONS.ContainsKey(api) && !ordered.Contains(api))
+                    ordered.Add(api);
+            }
+            foreach (string api in DEFAULT_API_ORDER)
+            {
+                if (TranslateAPI.TRANSLATE_FUNCTIONS.ContainsKey(api) && !ordered.Contains(api))
+                    ordered.Add(api);
+            }
+            foreach (string api in TranslateAPI.TRANSLATE_FUNCTIONS.Keys)
+            {
+                if (!ordered.Contains(api))
+                    ordered.Add(api);
+            }
+
+            var enabledSet = enabledApis
+                .Where(TranslateAPI.TRANSLATE_FUNCTIONS.ContainsKey)
+                .ToHashSet();
+            var validEnabled = ordered
+                .Where(enabledSet.Contains)
+                .ToList();
+            if (validEnabled.Count == 0)
+            {
+                string fallback = !string.IsNullOrEmpty(apiName) && TranslateAPI.TRANSLATE_FUNCTIONS.ContainsKey(apiName)
+                    ? apiName
+                    : "Google";
+                validEnabled.Add(fallback);
+            }
+
+            var normalizedOrder = new List<string>(validEnabled);
+            foreach (string api in ordered)
+            {
+                if (!normalizedOrder.Contains(api))
+                    normalizedOrder.Add(api);
+            }
+
+            apiName = validEnabled[0];
+            parallelApiNames = validEnabled.Skip(1).ToList();
+            apiOrder = normalizedOrder;
+
+            OnPropertyChanged("ApiName");
+            OnPropertyChanged("ParallelApiNames");
+            OnPropertyChanged("ApiOrder");
         }
 
         public void Save()

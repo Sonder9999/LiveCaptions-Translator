@@ -49,6 +49,24 @@ namespace LiveCaptionsTranslator
             return apis;
         }
 
+        public static void EnqueueActiveApisForCurrentCaption()
+        {
+            string currentOriginal = Caption?.OriginalCaption ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(currentOriginal) || LogOnlyFlag)
+                return;
+
+            foreach (var apiName in GetActiveApis())
+            {
+                var api = apiName;
+                var currentOutput = GetTaskQueue(api).Output.translatedText;
+                if (string.IsNullOrWhiteSpace(currentOutput))
+                {
+                    GetTaskQueue(api).Enqueue(token => Task.Run(
+                        () => Translate(currentOriginal, api, token), token), currentOriginal);
+                }
+            }
+        }
+
         public static AutomationElement? Window
         {
             get => window;
