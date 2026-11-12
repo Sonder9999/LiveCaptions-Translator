@@ -2,7 +2,6 @@ using System.Collections.ObjectModel;
 using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using Wpf.Ui.Appearance;
@@ -156,7 +155,7 @@ namespace LiveCaptionsTranslator
 
         private void NewEngineButton_Click(object sender, RoutedEventArgs e)
         {
-            OpenSettingWindow();
+            OpenSettingWindow(null, isNewMode: true);
         }
 
         private void DeleteEngine_Click(object sender, RoutedEventArgs e)
@@ -183,7 +182,7 @@ namespace LiveCaptionsTranslator
             if (sender is not FrameworkElement element || element.Tag is not string apiName)
                 return;
 
-            OpenSettingWindow(apiName);
+            OpenSettingWindow(apiName, isNewMode: false);
         }
 
         private static List<string> GetCurrentOrderedApis()
@@ -243,34 +242,54 @@ namespace LiveCaptionsTranslator
             Translator.Setting.TargetLanguage = TargetLangBox.Text;
         }
 
-        private void APISettingButton_click(object sender, RoutedEventArgs e)
-        {
-            OpenSettingWindow();
-        }
-
-        private static void OpenSettingWindow(string? targetSection = null)
+        private void OpenSettingWindow(string? targetApiName, bool isNewMode)
         {
             if (SettingWindow != null && SettingWindow.IsLoaded)
             {
+                SettingWindow.OpenForEngine(targetApiName, isNewMode);
                 SettingWindow.Activate();
-                NavigateSettingWindowSection(targetSection);
             }
             else
             {
-                SettingWindow = new SettingWindow();
+                SettingWindow = new SettingWindow(targetApiName, isNewMode);
+                if (Application.Current?.MainWindow != null && Application.Current.MainWindow.IsLoaded)
+                    SettingWindow.Owner = Application.Current.MainWindow;
+                SettingWindow.EngineSaved += OnEngineSaved;
                 SettingWindow.Closed += (sender, args) => SettingWindow = null;
-                SettingWindow.Loaded += (sender, args) => NavigateSettingWindowSection(targetSection);
                 SettingWindow.Show();
             }
         }
 
-        private static void NavigateSettingWindowSection(string? targetSection)
+        private void OnEngineSaved(string savedApiName, bool wasNewMode)
         {
-            if (SettingWindow == null || string.IsNullOrEmpty(targetSection))
+            if (Translator.Setting == null || string.IsNullOrWhiteSpace(savedApiName))
                 return;
 
-            if (SettingWindow.FindName($"{targetSection}Button") is System.Windows.Controls.Button navButton)
-                navButton.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            var orderedApis = GetCurrentOrderedApis();
+            var enabledApis = Translator.GetActiveApis();
+
+            if (wasNewMode || !orderedApis.Contains(savedApiName))
+            {
+                if (!enabledApis.Contains(savedApiName))
+                {
+                    enabledApis.Add(savedApiName);
+                    orderedApis.Remove(savedApiName);
+                    int insertIndex = Math.Min(enabledApis.Count - 1, orderedApis.Count);
+                    orderedApis.Insert(insertIndex, savedApiName);
+                }
+                else if (!orderedApis.Contains(savedApiName))
+                {
+                    orderedApis.Add(savedApiName);
+                }
+
+                ApplyEngineSelection(orderedApis, enabledApis);
+            }
+            else
+            {
+                RefreshEngineItems();
+                LoadAPISetting();
+                Translator.EnqueueActiveApisForCurrentCaption();
+            }
         }
 
         private void Contexts_ValueChanged(object sender, NumberBoxValueChangedEventArgs args)

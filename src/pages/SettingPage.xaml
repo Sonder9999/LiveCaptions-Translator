@@ -250,18 +250,6 @@
                         </ui:Flyout>
                     </StackPanel>
                 </StackPanel>
-
-                <StackPanel Margin="15,8,0,0" Orientation="Vertical">
-                    <TextBlock Margin="2.5,0,0,5" Text="API Setting" />
-                    <ui:Button
-                        x:Name="APISettingButton"
-                        Width="110"
-                        Height="30"
-                        Padding="11,4,11,4"
-                        Click="APISettingButton_click">
-                        <TextBlock Text="Open" />
-                    </ui:Button>
-                </StackPanel>
             </StackPanel>
         </Grid>
 
@@ -358,6 +346,7 @@
 
                                         <CheckBox
                                             Grid.Column="0"
+                                            MinWidth="0"
                                             Margin="0,0,6,0"
                                             VerticalAlignment="Center"
                                             Click="EngineCheckBox_Click"
