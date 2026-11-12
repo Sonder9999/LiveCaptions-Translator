@@ -1,11 +1,50 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Windows;
 
 using LiveCaptionsTranslator.utils;
 
 namespace LiveCaptionsTranslator.models
 {
+    public class EngineTranslationItem
+    {
+        public string ApiName { get; init; } = string.Empty;
+        public bool ShowEngineTag { get; init; }
+        public string NoticePrefix { get; init; } = string.Empty;
+        public string PureTranslation { get; init; } = string.Empty;
+        public string MainShortenedTranslation { get; init; } = string.Empty;
+
+        public string EngineBadgeText => ShowEngineTag && !string.IsNullOrEmpty(ApiName) ? ApiName : string.Empty;
+        public Visibility EngineBadgeVisibility => ShowEngineTag && !string.IsNullOrEmpty(ApiName)
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+        public string MainDisplayText
+        {
+            get
+            {
+                string body = string.IsNullOrEmpty(MainShortenedTranslation) ? PureTranslation : MainShortenedTranslation;
+                return string.IsNullOrEmpty(NoticePrefix) ? body : $"{NoticePrefix} {body}".Trim();
+            }
+        }
+
+        public string OverlayDisplayText
+        {
+            get
+            {
+                var parts = new List<string>(3);
+                if (ShowEngineTag && !string.IsNullOrEmpty(ApiName))
+                    parts.Add($"[{ApiName}]");
+                if (!string.IsNullOrEmpty(NoticePrefix))
+                    parts.Add(NoticePrefix);
+                if (!string.IsNullOrEmpty(PureTranslation))
+                    parts.Add(PureTranslation);
+                return parts.Count > 0 ? string.Join(" ", parts) : " ";
+            }
+        }
+    }
+
     public class Caption : INotifyPropertyChanged
     {
         public const int MAX_CONTEXTS = 10;
@@ -18,6 +57,10 @@ namespace LiveCaptionsTranslator.models
         private string overlayOriginalCaption = " ";
         private string overlayCurrentTranslation = " ";
         private string overlayNoticePrefix = " ";
+        private IReadOnlyList<EngineTranslationItem> engineTranslations =
+        [
+            new EngineTranslationItem { PureTranslation = " " }
+        ];
 
         public string OriginalCaption { get; set; } = string.Empty;
         public string TranslatedCaption { get; set; } = string.Empty;
@@ -77,8 +120,23 @@ namespace LiveCaptionsTranslator.models
             }
         }
 
+        public IReadOnlyList<EngineTranslationItem> EngineTranslations
+        {
+            get => engineTranslations;
+            set
+            {
+                engineTranslations = value ?? [];
+                OnPropertyChanged("EngineTranslations");
+            }
+        }
+
         public string OverlayPreviousTranslation =>
-            GetPreviousText(Translator.Setting.DisplaySentences, TextType.Translation);
+            GetPreviousText(Translator.Setting.DisplaySentences, TextType.Translation).Trim();
+
+        public Visibility OverlayPreviousTranslationVisibility =>
+            Translator.Setting.DisplaySentences > 0 && !string.IsNullOrWhiteSpace(OverlayPreviousTranslation)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
 
         private Caption()
         {
@@ -149,6 +207,8 @@ namespace LiveCaptionsTranslator.models
         public void OnPropertyChanged([CallerMemberName] string propName = "")
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propName));
+            if (propName == nameof(OverlayPreviousTranslation))
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(OverlayPreviousTranslationVisibility)));
         }
     }
 

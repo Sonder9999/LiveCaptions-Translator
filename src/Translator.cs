@@ -245,46 +245,42 @@ namespace LiveCaptionsTranslator
 
         public static async Task DisplayLoop()
         {
+            string lastRenderedSignature = string.Empty;
+
             while (true)
             {
                 var activeApis = GetActiveApis();
-                var (translatedText, isChoke) = activeApis.Count > 0
-                    ? GetTaskQueue(activeApis[0]).Output
-                    : translationTaskQueue.Output;
+                bool isChoke = false;
 
                 if (LogOnlyFlag)
                 {
-                    Caption.TranslatedCaption = string.Empty;
-                    Caption.DisplayTranslatedCaption = "[Paused]";
-                    Caption.OverlayNoticePrefix = "[Paused]";
-                    Caption.OverlayCurrentTranslation = string.Empty;
-                }
-                else if (activeApis.Count <= 1)
-                {
-                    if (!string.IsNullOrEmpty(RegexPatterns.NoticePrefix().Replace(
-                             translatedText, string.Empty).Trim()) &&
-                         string.CompareOrdinal(Caption.TranslatedCaption, translatedText) != 0)
+                    const string pausedSignature = "PAUSED";
+                    if (string.CompareOrdinal(lastRenderedSignature, pausedSignature) != 0)
                     {
-                        // Main page
-                        Caption.TranslatedCaption = translatedText;
-                        Caption.DisplayTranslatedCaption =
-                            TextUtil.ShortenDisplaySentence(Caption.TranslatedCaption, TextUtil.VERYLONG_THRESHOLD);
-
-                        // Overlay window
-                        if (Caption.TranslatedCaption.Contains("[ERROR]") || Caption.TranslatedCaption.Contains("[WARNING]"))
-                            Caption.OverlayCurrentTranslation = Caption.TranslatedCaption;
-                        else
-                        {
-                            var match = RegexPatterns.NoticePrefixAndTranslation().Match(Caption.TranslatedCaption);
-                            Caption.OverlayNoticePrefix = match.Groups[1].Value.Trim();
-                            Caption.OverlayCurrentTranslation = match.Groups[2].Value.Trim();
-                        }
+                        lastRenderedSignature = pausedSignature;
+                        Caption.TranslatedCaption = string.Empty;
+                        Caption.DisplayTranslatedCaption = "[Paused]";
+                        Caption.OverlayNoticePrefix = "[Paused]";
+                        Caption.OverlayCurrentTranslation = string.Empty;
+                        Caption.EngineTranslations =
+                        [
+                            new EngineTranslationItem
+                            {
+                                ApiName = string.Empty,
+                                ShowEngineTag = false,
+                                NoticePrefix = "[Paused]",
+                                PureTranslation = string.Empty,
+                                MainShortenedTranslation = string.Empty
+                            }
+                        ];
                     }
                 }
-                else
+                else if (activeApis.Count > 0)
                 {
-                    var mainLines = new List<string>();
-                    var overlayLines = new List<string>();
+                    bool showEngineTag = activeApis.Count > 1;
+                    var items = new List<EngineTranslationItem>(activeApis.Count);
+                    var mainLines = new List<string>(activeApis.Count);
+                    var overlayLines = new List<string>(activeApis.Count);
                     string primaryNoticePrefix = string.Empty;
 
                     for (int i = 0; i < activeApis.Count; i++)
@@ -294,27 +290,60 @@ namespace LiveCaptionsTranslator
                         if (string.IsNullOrEmpty(RegexPatterns.NoticePrefix().Replace(apiOutput, string.Empty).Trim()))
                             continue;
 
-                        mainLines.Add($"[{api}] {TextUtil.ShortenDisplaySentence(apiOutput, TextUtil.VERYLONG_THRESHOLD)}");
-
-                        if (i == 0 && !apiOutput.Contains("[ERROR]") && !apiOutput.Contains("[WARNING]"))
+                        string noticePrefix = string.Empty;
+                        string pureText;
+                        if (apiOutput.Contains("[ERROR]") || apiOutput.Contains("[WARNING]"))
                         {
-                            var match = RegexPatterns.NoticePrefixAndTranslation().Match(apiOutput);
-                            primaryNoticePrefix = match.Groups[1].Value.Trim();
-                            overlayLines.Add($"[{api}] {match.Groups[2].Value.Trim()}");
+                            pureText = apiOutput.Trim();
                         }
                         else
                         {
-                            overlayLines.Add($"[{api}] {apiOutput.Trim()}");
+                            var match = RegexPatterns.NoticePrefixAndTranslation().Match(apiOutput);
+                            noticePrefix = match.Groups[1].Value.Trim();
+                            pureText = match.Groups[2].Value.Trim();
+                        }
+
+                        if (i == 0)
+                            primaryNoticePrefix = noticePrefix;
+
+                        string shortenedPure = TextUtil.ShortenDisplaySentence(pureText, TextUtil.VERYLONG_THRESHOLD);
+                        var item = new EngineTranslationItem
+                        {
+                            ApiName = api,
+                            ShowEngineTag = showEngineTag,
+                            NoticePrefix = noticePrefix,
+                            PureTranslation = pureText,
+                            MainShortenedTranslation = shortenedPure
+                        };
+                        items.Add(item);
+
+                        if (showEngineTag)
+                        {
+                            mainLines.Add($"[{api}] {item.MainDisplayText}");
+                            overlayLines.Add(item.OverlayDisplayText);
+                        }
+                        else
+                        {
+                            mainLines.Add(item.MainDisplayText);
+                            overlayLines.Add(pureText);
                         }
                     }
 
-                    string combinedMain = string.Join("\n", mainLines);
-                    if (mainLines.Count > 0 && string.CompareOrdinal(Caption.TranslatedCaption, combinedMain) != 0)
+                    if (items.Count > 0)
                     {
-                        Caption.TranslatedCaption = combinedMain;
-                        Caption.DisplayTranslatedCaption = combinedMain;
-                        Caption.OverlayNoticePrefix = primaryNoticePrefix;
-                        Caption.OverlayCurrentTranslation = string.Join("\n", overlayLines);
+                        string signature = $"{showEngineTag}|{string.Join("\n", items.Select(x => $"{x.ApiName}:{x.OverlayDisplayText}"))}";
+                        if (string.CompareOrdinal(lastRenderedSignature, signature) != 0)
+                        {
+                            lastRenderedSignature = signature;
+                            string combinedMain = string.Join("\n", mainLines);
+                            Caption.TranslatedCaption = showEngineTag
+                                ? combinedMain
+                                : GetTaskQueue(activeApis[0]).Output.translatedText;
+                            Caption.DisplayTranslatedCaption = combinedMain;
+                            Caption.OverlayNoticePrefix = primaryNoticePrefix;
+                            Caption.OverlayCurrentTranslation = string.Join("\n", overlayLines);
+                            Caption.EngineTranslations = items;
+                        }
                     }
 
                     isChoke = activeApis.All(api => GetTaskQueue(api).Output.isChoke);
