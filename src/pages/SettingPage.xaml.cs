@@ -4,32 +4,37 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
-using System.Windows.Threading;
+using System.Windows.Media;
 using Wpf.Ui.Appearance;
 using Wpf.Ui.Controls;
 
 using LiveCaptionsTranslator.apis;
 using LiveCaptionsTranslator.models;
 using LiveCaptionsTranslator.utils;
+using LiveCaptionsTranslator.Utils;
 
 namespace LiveCaptionsTranslator
 {
     public class TranslationEngineItem
     {
+        private static readonly Brush EnabledRowBrush = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0x28, 0xFF, 0xFF, 0xFF));
+        private static readonly Brush DisabledRowBrush = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0x12, 0xFF, 0xFF, 0xFF));
+        private static readonly Brush ActiveTrashBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xF8, 0x71, 0x71));
+        private static readonly Brush MutedTrashBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x88, 0x88, 0x88));
+
         public string ApiName { get; init; } = string.Empty;
         public bool IsEnabled { get; init; }
         public int ActiveRank { get; init; }
         public bool CanMoveUp { get; init; }
         public bool CanMoveDown { get; init; }
+        public bool CanDelete { get; init; }
         public bool IsFreeApi { get; init; }
 
         public string OrderBadge => IsEnabled ? $"{ActiveRank}." : string.Empty;
         public FontWeight TitleFontWeight => IsEnabled ? FontWeights.SemiBold : FontWeights.Regular;
-        public string RoleDescription => !IsEnabled
-            ? string.Empty
-            : ActiveRank == 1
-                ? "(第 1 行 / 主上下文)"
-                : $"(第 {ActiveRank} 行)";
+        public double NameOpacity => IsEnabled ? 1.0 : 0.8;
+        public Brush RowBackground => IsEnabled ? EnabledRowBrush : DisabledRowBrush;
+        public Brush TrashIconBrush => IsFreeApi ? MutedTrashBrush : ActiveTrashBrush;
         public Visibility FreeTagVisibility => IsFreeApi ? Visibility.Visible : Visibility.Collapsed;
         public Visibility ConfigButtonVisibility => IsFreeApi ? Visibility.Collapsed : Visibility.Visible;
     }
@@ -149,6 +154,30 @@ namespace LiveCaptionsTranslator
             ApplyEngineSelection(orderedApis, enabledApis);
         }
 
+        private void NewEngineButton_Click(object sender, RoutedEventArgs e)
+        {
+            OpenSettingWindow();
+        }
+
+        private void DeleteEngine_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not FrameworkElement element || element.Tag is not string apiName || Translator.Setting == null)
+                return;
+
+            var orderedApis = GetCurrentOrderedApis();
+            var enabledApis = Translator.GetActiveApis();
+
+            if (orderedApis.Count <= 1 || (enabledApis.Count <= 1 && enabledApis.Contains(apiName)))
+            {
+                SnackbarHost.Show("至少保留一个翻译引擎", "请至少保持 1 个翻译引擎处于启用状态。", SnackbarType.Warning, timeout: 2);
+                return;
+            }
+
+            orderedApis.Remove(apiName);
+            enabledApis.Remove(apiName);
+            ApplyEngineSelection(orderedApis, enabledApis);
+        }
+
         private void EngineConfigButton_Click(object sender, RoutedEventArgs e)
         {
             if (sender is not FrameworkElement element || element.Tag is not string apiName)
@@ -188,6 +217,7 @@ namespace LiveCaptionsTranslator
 
                 bool canMoveUp = isEnabled ? activeRank > 1 : i > enabledSet.Count;
                 bool canMoveDown = isEnabled ? activeRank < enabledSet.Count : i < orderedApis.Count - 1;
+                bool canDelete = orderedApis.Count > 1 && (!isEnabled || enabledSet.Count > 1);
 
                 engineItems.Add(new TranslationEngineItem
                 {
@@ -196,13 +226,10 @@ namespace LiveCaptionsTranslator
                     ActiveRank = isEnabled ? activeRank : 0,
                     CanMoveUp = canMoveUp,
                     CanMoveDown = canMoveDown,
+                    CanDelete = canDelete,
                     IsFreeApi = TranslateAPI.NO_CONFIG_APIS.Contains(api)
                 });
             }
-
-            ActiveEnginesSummaryText.Text = enabledApis.Count > 0
-                ? $"已启用 ({enabledApis.Count}): {string.Join(" → ", enabledApis)}"
-                : string.Empty;
         }
 
         private void TargetLangBox_SelectionChanged(object sender, SelectionChangedEventArgs e)

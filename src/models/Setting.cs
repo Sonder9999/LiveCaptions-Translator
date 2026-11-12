@@ -14,12 +14,16 @@ namespace LiveCaptionsTranslator.models
         public static readonly string FILENAME = "setting.json";
         public static readonly IReadOnlyList<string> DEFAULT_API_ORDER =
         [
-            "Google",
             "IndexTranslate",
+            "Google2",
             "OpenAI",
+            "Google"
+        ];
+
+        private static readonly IReadOnlyList<string> LEGACY_AUTO_FILLED_TAIL =
+        [
             "DeepL",
             "Ollama",
-            "Google2",
             "LMStudio",
             "OpenRouter",
             "Youdao",
@@ -348,23 +352,28 @@ namespace LiveCaptionsTranslator.models
                 activeApis.Add("Google");
 
             var ordered = new List<string>(activeApis);
-            if (apiOrder != null)
+            if (apiOrder != null && apiOrder.Count > 0)
             {
-                foreach (string api in apiOrder)
+                var sourceOrder = apiOrder;
+                if (sourceOrder.Count == TranslateAPI.TRANSLATE_FUNCTIONS.Count &&
+                    LEGACY_AUTO_FILLED_TAIL.All(tailApi => !activeApis.Contains(tailApi) && sourceOrder.Contains(tailApi)))
+                {
+                    sourceOrder = sourceOrder.Except(LEGACY_AUTO_FILLED_TAIL).ToList();
+                }
+
+                foreach (string api in sourceOrder)
                 {
                     if (TranslateAPI.TRANSLATE_FUNCTIONS.ContainsKey(api) && !ordered.Contains(api))
                         ordered.Add(api);
                 }
             }
-            foreach (string api in DEFAULT_API_ORDER)
+            else
             {
-                if (TranslateAPI.TRANSLATE_FUNCTIONS.ContainsKey(api) && !ordered.Contains(api))
-                    ordered.Add(api);
-            }
-            foreach (string api in TranslateAPI.TRANSLATE_FUNCTIONS.Keys)
-            {
-                if (!ordered.Contains(api))
-                    ordered.Add(api);
+                foreach (string api in DEFAULT_API_ORDER)
+                {
+                    if (TranslateAPI.TRANSLATE_FUNCTIONS.ContainsKey(api) && !ordered.Contains(api))
+                        ordered.Add(api);
+                }
             }
 
             apiName = activeApis[0];
@@ -380,16 +389,6 @@ namespace LiveCaptionsTranslator.models
                 if (TranslateAPI.TRANSLATE_FUNCTIONS.ContainsKey(api) && !ordered.Contains(api))
                     ordered.Add(api);
             }
-            foreach (string api in DEFAULT_API_ORDER)
-            {
-                if (TranslateAPI.TRANSLATE_FUNCTIONS.ContainsKey(api) && !ordered.Contains(api))
-                    ordered.Add(api);
-            }
-            foreach (string api in TranslateAPI.TRANSLATE_FUNCTIONS.Keys)
-            {
-                if (!ordered.Contains(api))
-                    ordered.Add(api);
-            }
 
             var enabledSet = enabledApis
                 .Where(TranslateAPI.TRANSLATE_FUNCTIONS.ContainsKey)
@@ -399,10 +398,11 @@ namespace LiveCaptionsTranslator.models
                 .ToList();
             if (validEnabled.Count == 0)
             {
-                string fallback = !string.IsNullOrEmpty(apiName) && TranslateAPI.TRANSLATE_FUNCTIONS.ContainsKey(apiName)
-                    ? apiName
-                    : "Google";
+                string fallback = ordered.FirstOrDefault()
+                    ?? (!string.IsNullOrEmpty(apiName) && TranslateAPI.TRANSLATE_FUNCTIONS.ContainsKey(apiName) ? apiName : "Google");
                 validEnabled.Add(fallback);
+                if (!ordered.Contains(fallback))
+                    ordered.Insert(0, fallback);
             }
 
             var normalizedOrder = new List<string>(validEnabled);

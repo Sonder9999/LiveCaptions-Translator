@@ -290,7 +290,7 @@
                         <ui:Flyout x:Name="TranslateAPIInfoFlyout">
                             <TextBlock
                                 Width="320"
-                                Text="勾选启用一个或多个翻译引擎，点击 ↑ / ↓ 调整各引擎在悬浮窗与主窗口中的上下显示顺序（第 1 行作为主上下文基准）。除 Google、Google2、IndexTranslate 免配置外，其余接口需先点击右侧配置。"
+                                Text="Check one or more translation APIs to enable them, and use ↑ / ↓ to adjust their display order in the Main Window and Overlay Window (the first enabled API serves as the primary context source). Except for Google, Google2, and IndexTranslate, all other APIs require configuration before use."
                                 TextWrapping="Wrap" />
                         </ui:Flyout>
                         <Button
@@ -307,13 +307,32 @@
                         </Button>
                     </StackPanel>
 
-                    <TextBlock
-                        x:Name="ActiveEnginesSummaryText"
+                    <ui:Button
+                        x:Name="NewEngineButton"
                         Grid.Column="1"
+                        Height="26"
+                        Padding="10,3,10,3"
                         HorizontalAlignment="Right"
                         VerticalAlignment="Center"
-                        FontSize="12"
-                        Opacity="0.8" />
+                        Background="#2D2D2D"
+                        BorderBrush="#0078D4"
+                        BorderThickness="1"
+                        Click="NewEngineButton_Click"
+                        ToolTip="Add Translation Engine">
+                        <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                            <ui:SymbolIcon
+                                Margin="0,0,4,0"
+                                FontSize="12"
+                                Foreground="#60CDFF"
+                                Symbol="Add16" />
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontSize="12"
+                                FontWeight="SemiBold"
+                                Foreground="White"
+                                Text="New" />
+                        </StackPanel>
+                    </ui:Button>
                 </Grid>
 
                 <ScrollViewer
@@ -323,15 +342,15 @@
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <Border
-                                    Margin="0,1,4,1"
-                                    Padding="8,3,8,3"
-                                    Background="#0AFFFFFF"
+                                    Height="36"
+                                    Margin="0,2,0,2"
+                                    Padding="10,0,10,0"
+                                    Background="{Binding RowBackground}"
                                     CornerRadius="4">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="26" />
-                                            <ColumnDefinition Width="130" />
+                                            <ColumnDefinition Width="22" />
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="Auto" />
                                             <ColumnDefinition Width="Auto" />
@@ -339,7 +358,7 @@
 
                                         <CheckBox
                                             Grid.Column="0"
-                                            Margin="0,0,4,0"
+                                            Margin="0,0,6,0"
                                             VerticalAlignment="Center"
                                             Click="EngineCheckBox_Click"
                                             IsChecked="{Binding IsEnabled, Mode=OneWay}"
@@ -348,62 +367,103 @@
                                         <TextBlock
                                             Grid.Column="1"
                                             VerticalAlignment="Center"
+                                            FontSize="12"
                                             FontWeight="SemiBold"
                                             Text="{Binding OrderBadge}" />
 
                                         <TextBlock
                                             Grid.Column="2"
                                             VerticalAlignment="Center"
+                                            FontSize="13"
                                             FontWeight="{Binding TitleFontWeight}"
+                                            Opacity="{Binding NameOpacity}"
                                             Text="{Binding ApiName}" />
 
                                         <TextBlock
                                             Grid.Column="3"
+                                            Margin="0,0,8,0"
                                             VerticalAlignment="Center"
                                             FontSize="12"
-                                            Opacity="0.75"
-                                            Text="{Binding RoleDescription}" />
-
-                                        <TextBlock
-                                            Grid.Column="4"
-                                            Margin="0,0,10,0"
-                                            VerticalAlignment="Center"
-                                            FontSize="12"
-                                            Opacity="0.6"
+                                            Foreground="#888888"
                                             Text="免配置"
                                             Visibility="{Binding FreeTagVisibility}" />
 
                                         <ui:Button
-                                            Grid.Column="4"
+                                            Grid.Column="3"
                                             Height="24"
-                                            Margin="0,0,10,0"
+                                            Margin="0,0,8,0"
                                             Padding="8,2,8,2"
+                                            VerticalAlignment="Center"
+                                            Background="#262626"
+                                            BorderBrush="#0078D4"
+                                            BorderThickness="1"
                                             Click="EngineConfigButton_Click"
-                                            Content="配置"
-                                            FontSize="12"
                                             Tag="{Binding ApiName}"
-                                            Visibility="{Binding ConfigButtonVisibility}" />
+                                            ToolTip="Configure API"
+                                            Visibility="{Binding ConfigButtonVisibility}">
+                                            <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                                                <ui:SymbolIcon
+                                                    Margin="0,0,4,0"
+                                                    FontSize="11"
+                                                    Foreground="#60CDFF"
+                                                    Symbol="Settings16" />
+                                                <TextBlock
+                                                    VerticalAlignment="Center"
+                                                    FontSize="11"
+                                                    FontWeight="Medium"
+                                                    Foreground="#60CDFF"
+                                                    Text="配置" />
+                                            </StackPanel>
+                                        </ui:Button>
 
-                                        <StackPanel Grid.Column="5" Orientation="Horizontal">
+                                        <StackPanel
+                                            Grid.Column="4"
+                                            VerticalAlignment="Center"
+                                            Orientation="Horizontal">
                                             <ui:Button
-                                                Width="28"
+                                                Width="24"
                                                 Height="24"
-                                                Margin="0,0,4,0"
+                                                Margin="0,0,6,0"
                                                 Padding="0"
+                                                Background="#262626"
+                                                BorderBrush="#383838"
+                                                BorderThickness="1"
+                                                Click="DeleteEngine_Click"
+                                                IsEnabled="{Binding CanDelete}"
+                                                Tag="{Binding ApiName}"
+                                                ToolTip="Remove Engine">
+                                                <ui:SymbolIcon
+                                                    FontSize="12"
+                                                    Foreground="{Binding TrashIconBrush}"
+                                                    Symbol="Delete16" />
+                                            </ui:Button>
+                                            <ui:Button
+                                                Width="24"
+                                                Height="24"
+                                                Margin="0,0,6,0"
+                                                Padding="0"
+                                                Background="#262626"
+                                                BorderBrush="#383838"
+                                                BorderThickness="1"
                                                 Click="MoveEngineUp_Click"
-                                                Content="↑"
                                                 IsEnabled="{Binding CanMoveUp}"
                                                 Tag="{Binding ApiName}"
-                                                ToolTip="上移 (Move Up)" />
+                                                ToolTip="Move Up">
+                                                <ui:SymbolIcon FontSize="12" Symbol="ArrowUp16" />
+                                            </ui:Button>
                                             <ui:Button
-                                                Width="28"
+                                                Width="24"
                                                 Height="24"
                                                 Padding="0"
+                                                Background="#262626"
+                                                BorderBrush="#383838"
+                                                BorderThickness="1"
                                                 Click="MoveEngineDown_Click"
-                                                Content="↓"
                                                 IsEnabled="{Binding CanMoveDown}"
                                                 Tag="{Binding ApiName}"
-                                                ToolTip="下移 (Move Down)" />
+                                                ToolTip="Move Down">
+                                                <ui:SymbolIcon FontSize="12" Symbol="ArrowDown16" />
+                                            </ui:Button>
                                         </StackPanel>
                                     </Grid>
                                 </Border>
